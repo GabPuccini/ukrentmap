@@ -127,6 +127,27 @@ try {
   check(/Manchester/.test(popM) && /£1,239/.test(popM), "M14 shows Manchester 2-bed £1,239");
   await page.screenshot({ path: SHOTS + "phone-390-manchester.png" });
 
+  // Who lives here: census ethnic groups for the district itself.
+  await page.waitForSelector(".rent-popup .eth-bar", { timeout: 20_000 });
+  const eth = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll(".rent-popup .pp-eth > .eth-list tr")].map((r) => r.textContent);
+    const total = rows.reduce((a, r) => a + parseFloat(r.match(/([\d.]+)%/)[1]), 0);
+    return { rows, total, text: document.querySelector(".rent-popup .pp-eth").textContent };
+  });
+  check(eth.rows.length === 5 && Math.abs(eth.total - 100) < 1.5 && /Census 2021/.test(eth.text), `M14 ethnicity: ${eth.rows.join(" | ")}`);
+  await page.click(".rent-popup .eth-more summary");
+  await page.evaluate(() => {
+    const c = document.querySelector(".rent-popup .pp");
+    c.scrollTop = c.querySelector(".pp-eth").offsetTop - 8;
+  });
+  await page.screenshot({ path: SHOTS + "phone-390-ethnicity.png" });
+
+  await page.fill(".search input", "EH1 1YZ");
+  await page.click(".search button");
+  await page.waitForFunction(() => document.querySelector(".rent-popup .pp-code")?.textContent === "EH1", null, { timeout: 20_000 });
+  const popEH = await page.textContent(".rent-popup .pp-eth");
+  check(/Scotland's Census 2022/.test(popEH) && /White/.test(popEH), "EH1 shows Scotland's Census 2022 figures");
+
   // Labels at city zoom, no popup: they fade in and are culled, never piled up.
   await page.click(".rent-popup .maplibregl-popup-close-button");
   await page.evaluate(() => window.__map.jumpTo({ center: [-0.12, 51.51], zoom: 10.2 }));
@@ -155,6 +176,7 @@ try {
   await page.waitForFunction(() => /BT9/.test(document.querySelector(".rent-popup .pp-code")?.textContent ?? ""), null, { timeout: 20_000 });
   const popNI = await page.textContent(".rent-popup");
   check(/Belfast/.test(popNI) && /July 2026/.test(popNI), "BT postcode shows Belfast BRMA, July 2026");
+  check(/Not available for Northern Ireland/.test(popNI), "NI popup explains there are no ethnicity figures");
 
   // Bad input.
   await page.fill(".search input", "ZZ99 9ZZ");

@@ -53,6 +53,15 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
           </li>
         </ul>
 
+        <h3>Who lives here</h3>
+        <p>
+          Each district&apos;s popup shows the ethnic groups of its residents. They come from the census for England and Wales (2021,
+          ONS) and Scotland (2022, National Records of Scotland). The census publishes counts for small areas of about 125 households.
+          Each small area is shared between postcode districts by how many of its home postcodes fall in each, then added up per
+          district. Districts with fewer than 100 residents show no percentages. There are no figures for Northern Ireland, because its
+          postcode data isn&apos;t open.
+        </p>
+
         <h3>District shapes</h3>
         <p>
           Royal Mail&apos;s district boundaries aren&apos;t open data. These shapes are a Voronoi diagram of all{" "}
@@ -83,6 +92,18 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
               {s.edition ? `, edition ${s.edition}` : ""}
             </li>
           ))}
+          <li>
+            <a href="https://www.ons.gov.uk/datasets/TS021" target="_blank" rel="noreferrer">
+              ONS Census 2021, TS021 Ethnic group
+            </a>
+            , England and Wales
+          </li>
+          <li>
+            <a href="https://www.scotlandscensus.gov.uk/documents/2022-output-area-data/" target="_blank" rel="noreferrer">
+              Scotland&apos;s Census 2022, UV201 Ethnic group
+            </a>
+            , National Records of Scotland
+          </li>
           <li>Northern Ireland BRMA postcode districts: Northern Ireland Housing Executive</li>
           <li>Map fonts: Noto Sans, SIL Open Font License</li>
         </ul>
@@ -93,7 +114,8 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
           <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noreferrer">
             Open Government Licence v3.0
           </a>
-          . Contains public sector information from the Scottish Government licensed under the Open Government Licence v3.0.
+          . Contains public sector information from the Scottish Government and National Records of Scotland (Scotland&apos;s
+          Census 2022) licensed under the Open Government Licence v3.0.
         </p>
         <p className="small">Data built {built}. Downloaded {meta.fetched.slice(0, 10)}.</p>
       </div>

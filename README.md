@@ -27,6 +27,9 @@ The repository already contains the built data, so that is all you need. Python 
   and bigger districts are placed first.
 - Popup: district code, area name (largest wards and council), the selected rent, a 1/2/3/4+ bed and all-homes breakdown, which rent
   area the figures belong to, any split across areas, and the source and month.
+- **Who lives here:** every popup also shows the ethnic groups of the district's own residents, from the census (2021 for England
+  and Wales, 2022 for Scotland). It has a bar and five labelled broad groups, with the detailed groups under "More detail". See
+  [Census ethnicity](#census-ethnicity).
 - Search: a full postcode (`SW1A 1AA`), a sector (`M14 5`) or a district (`CF10`). It flies there and opens the popup. Lookup runs
   on the device against the bundled postcode files. There is no geocoding service.
 - Data month is in the header: **September 2026** for Great Britain, **July 2026** for Northern Ireland (the latest ONS has).
@@ -42,6 +45,9 @@ Everything is free and open. No API keys, no runtime calls to anyone else's serv
 | Scottish Broad Rental Market Areas | [Scottish Government spatial data](https://www.spatialdata.gov.scot/geonetwork/srv/eng/catalog.search#/metadata/ecf60902-9e71-41bc-b822-6a1f37934dc1) | SG_BroadRentalMarketAreas_2009 | OGL v3.0 |
 | Coastline (for clipping) | [ONS Countries (December 2025) Boundaries UK BGC](https://geoportal.statistics.gov.uk/) | Dec 2025 | OGL v3.0 |
 | Council and ward names | ONS Local Authority Districts (May 2026), Wards (May 2026) | May 2026 | OGL v3.0 |
+| Ethnic group, England & Wales | [ONS Census 2021, TS021](https://www.ons.gov.uk/datasets/TS021), output areas, via the [Nomis bulk download](https://www.nomisweb.co.uk/output/census/2021/census2021-ts021.zip) | Census Day 21 March 2021 | OGL v3.0 |
+| Ethnic group, Scotland | [Scotland's Census 2022, UV201](https://www.scotlandscensus.gov.uk/documents/2022-output-area-data/), output areas (National Records of Scotland) | Census Day 20 March 2022 | OGL v3.0 |
+| Postcode → census output area | ONS Postcode Directory (August 2026), GB rows only | Aug 2026 | OGL v3.0 |
 | NI rent areas by postcode district | Northern Ireland Housing Executive, as compiled in [nick-bailey/Postcode-to-BRMA-lookup](https://github.com/nick-bailey/Postcode-to-BRMA-lookup) (OGL) | May 2024 | OGL v3.0 |
 | Map fonts | Noto Sans glyphs from [protomaps/basemaps-assets](https://github.com/protomaps/basemaps-assets) | | SIL OFL 1.1 |
 
@@ -49,7 +55,8 @@ Required attribution (shown in the app's key and in its About sheet):
 
 > Contains OS data © Crown copyright and database right 2026. Contains Royal Mail data © Royal Mail copyright and database right 2026.
 > Contains National Statistics data © Crown copyright and database right 2026. Source: Office for National Statistics licensed under the
-> Open Government Licence v3.0. Contains public sector information from the Scottish Government licensed under the Open Government Licence v3.0.
+> Open Government Licence v3.0. Contains public sector information from the Scottish Government and National Records of Scotland
+> (Scotland's Census 2022) licensed under the Open Government Licence v3.0.
 
 ### Why these sources, and what they can't do
 
@@ -75,6 +82,27 @@ Required attribution (shown in the app's key and in its About sheet):
   eight areas. ONS's latest NI month is July 2026; ONS estimates the two newer months, and those are not shown.
 - PIPR is an average across new **and** existing tenancies, so it runs below advertised asking rents. Scottish figures are mainly for
   advertised new lets (an ONS note).
+
+### Census ethnicity
+
+The popup's "Who lives here" section shows the ethnic groups of the district's usual residents, not the whole council's.
+
+- **Where it comes from.** The census publishes counts for *output areas* of about 125 households: 188,880 in England and Wales,
+  46,363 in Scotland. Every live postcode belongs to one output area (ONS Postcode Directory). Each output area's residents are shared
+  between postcode districts by how many of its residential postcodes fall in each, then added up per district. That covers 99.99% of
+  residents in England and Wales and 99.8% in Scotland.
+- **Groups.** There are five broad groups: White; Asian; Black, African or Caribbean; Mixed or multiple; Other, including Arab. Each
+  census's own detailed groups are under "More detail". Scotland asks slightly different questions, e.g. it separates White Scottish
+  and White Polish.
+- **Dates.** England and Wales figures are from March 2021; Scotland's are from March 2022. The popup says which.
+- **Gaps.** Districts with fewer than 100 residents (mostly business and PO box districts) show no percentages. Northern Ireland has
+  no figures: matching census areas to BT postcode districts would need the NI postcode data, whose licence doesn't allow it.
+- I didn't use the [Wikipedia list](https://en.wikipedia.org/wiki/List_of_English_districts_by_ethnicity). It copies the same 2021
+  census but only for whole councils, only for England, and for the councils as they were before the 2023 mergers.
+
+These figures change once a decade, so they aren't part of the weekly refresh. `public/data/ethnicity.json` is built once by
+`npm run data:ethnicity` (`scripts/build_ethnicity.py`, about 3 minutes, mostly downloading the postcode lookup). Re-run it only to
+pick up newly created postcode districts.
 
 ## Refreshing the data
 
@@ -180,6 +208,7 @@ npm run build:pages && npm test
 `npm test` (`scripts/smoke.mjs`) drives the built app in Chromium at **390 × 844** (iPhone size) and checks:
 - the map renders, the header shows the data month, the legend has £ stops, and there's no horizontal scroll
 - search: a postcode opens the right popup with the 1/2/3/4+ breakdown and source; district, NI and unknown postcodes are handled
+- census ethnicity: M14's five groups add up to 100%, EH1 shows Scotland's 2022 census, and NI explains why it has none
 - the bedroom selector and colour-blind toggle repaint the map and the open popup
 - tapping a district opens its popup
 - London labels are culled with **zero overlaps**
@@ -203,13 +232,14 @@ lib/
   search.ts           on-device postcode parsing and lookup
   popup.ts            popup content (built with DOM calls, never HTML strings)
 public/
-  data/               built data (committed): districts.pmtiles, districts.json, labels.geojson, ni.geojson, meta.json, pc/*.txt
+  data/               built data (committed): districts.pmtiles, districts.json, ethnicity.json, labels.geojson, ni.geojson,
+                      meta.json, pc/*.txt
   fonts/              glyphs for map labels
   icons/              app icons (scripts/make_icons.py)
   sw.js               service worker (stamped with a content hash at build)
   manifest.webmanifest  robots.txt
 scripts/
-  fetch_data.py  build_data.py  data_changed.py  ni_outcode_brma.csv  requirements.txt
+  fetch_data.py  build_data.py  data_changed.py  build_ethnicity.py  ni_outcode_brma.csv  requirements.txt
   postbuild.mjs       writes the precache list and version into out/sw.js
   copy-vendor.mjs     copies MapLibre's worker into public/vendor/ (MapLibre 6 needs setWorkerUrl under a bundler)
   serve-out.mjs       local static server with byte ranges, for preview and tests
