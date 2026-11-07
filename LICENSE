@@ -24,4 +24,7 @@ This licence covers the code only. The data in public/data/ is derived from
 Ordnance Survey, Royal Mail, Office for National Statistics and Scottish
 Government data published under the Open Government Licence v3.0, and the
 fonts in public/fonts/ are under the SIL Open Font License (public/fonts/OFL.txt).
+The walking network in public/data/walk/ is derived from OpenStreetMap data,
+(c) OpenStreetMap contributors, under the Open Database Licence 1.0
+(public/data/walk/LICENSE).
 See README.md for the attribution statements.

@@ -8,7 +8,9 @@
 // Needs Playwright:  npm i -D playwright && npx playwright install chromium
 // Screenshots go to screenshots/.
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -199,6 +201,33 @@ try {
   const popEC = await page.textContent(".rent-popup");
   check(/No data/.test(popEC) && /grey rather than guessed/.test(popEC), "City of London shows No data, grey");
 
+  // Walking distance between two postcodes, worked out on the device.
+  const walk = async (from, to) => {
+    await page.fill(".walk input >> nth=0", from);
+    await page.fill(".walk input >> nth=1", to);
+    await page.click(".walk button");
+    await page.waitForFunction(() => document.querySelector(".walk-result") || document.querySelector(".walk-msg:not(:empty)")?.textContent?.match(/can't|No |too far|no walk/i), null, { timeout: 90_000 });
+    const text = (await page.textContent(".walk-result").catch(() => null)) ?? (await page.textContent(".walk-msg"));
+    const km = parseFloat(/([\d.]+) km/.exec(text ?? "")?.[1] ?? (/(\d+) m \(/.exec(text ?? "") ? String(Number(/(\d+) m \(/.exec(text)[1]) / 1000) : "NaN"));
+    return { text, km };
+  };
+  await page.click(".walk-btn");
+  const w1 = await walk("SW1A 1AA", "SW1A 0AA");
+  check(w1.km > 1.0 && w1.km < 2.6 && /min on foot/.test(w1.text), `walk Buckingham Palace -> Parliament: ${w1.text?.split("→")[0]}`);
+  const route = await page.evaluate(async () => (await window.__map.getSource("walk").getData()).features);
+  check(route.length === 3 && route[0].geometry.coordinates.length > 10, `route and A/B markers drawn (${route[0]?.geometry.coordinates.length} points)`);
+  await waitIdle();
+  await page.screenshot({ path: SHOTS + "phone-390-walk.png" });
+  const w2 = await walk("M14 7EE", "M1 1AD");
+  check(w2.km > 3 && w2.km < 7, `walk Fallowfield -> Manchester centre, across tiles: ${w2.text?.split("→")[0]}`);
+  const w3 = await walk("M14 7EE", "BT9 5AB");
+  check(/Northern Ireland/.test(w3.text ?? ""), `walk to a BT postcode explains NI: "${w3.text}"`);
+  const w4 = await walk("M14 7EE", "EH1 1YZ");
+  check(/too far/.test(w4.text ?? ""), "Manchester to Edinburgh is refused as too far to walk");
+  await page.click(".walk-btn");
+  const cleared = await page.evaluate(async () => (await window.__map.getSource("walk").getData()).features.length);
+  check(cleared === 0 && !!(await page.$(".search")), "closing walk mode clears the route and brings search back");
+
   // Installability and offline.
   const manifest = await page.evaluate(async () => (await fetch(document.querySelector("link[rel=manifest]").href)).json());
   check(manifest.display === "standalone" && manifest.icons.length >= 2, "manifest: standalone with icons");
@@ -221,9 +250,67 @@ try {
   await page.click(".search button");
   await page.waitForSelector(".rent-popup .pp-code", { timeout: 20_000 });
   check(true, "offline search for a postcode used before works");
+  await page.click(".walk-btn");
+  const wOff = await walk("SW1A 1AA", "SW1A 0AA");
+  check(Math.abs(wOff.km - w1.km) < 0.05, `offline walk on tiles used before: ${wOff.text?.split("→")[0]}`);
+  await page.click(".walk-btn");
   await context.setOffline(false);
 
   check(errors.length === 0, `no console errors${errors.length ? ": " + errors.slice(0, 3).join(" / ") : ""}`);
+
+  // Updates: serve a copy of the build, "deploy" a new version into it, and
+  // check the installed app offers it and switches to it.
+  const copy = await mkdtemp(join(tmpdir(), "ukrentmap-update-"));
+  await cp(new URL("../out/", import.meta.url).pathname, copy, { recursive: true });
+  const server2 = spawn(process.execPath, [new URL("./serve-out.mjs", import.meta.url).pathname], {
+    env: { ...process.env, PORT: String(PORT + 1), OUT_DIR: copy },
+    stdio: "ignore",
+  });
+  await new Promise((r) => setTimeout(r, 800));
+  const url2 = base.replace(String(PORT), String(PORT + 1));
+  const deploy = async (tag) => {
+    const sw = join(copy, "sw.js");
+    await writeFile(sw, (await readFile(sw, "utf8")).replace(/const VERSION = "([^"]+)"/, `const VERSION = "$1-${tag}"`));
+  };
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const p2 = await ctx2.newPage();
+    await p2.goto(url2);
+    await p2.waitForSelector("html[data-ready='1']", { timeout: 60_000 });
+    await p2.evaluate(() => navigator.serviceWorker.ready);
+    await p2.reload();
+    await p2.waitForSelector("html[data-ready='1']");
+
+    await deploy("a");
+    await p2.reload();
+    await p2.waitForSelector("html[data-ready='1']");
+    const toast = await p2.waitForSelector(".toast", { timeout: 30_000 }).then(() => true, () => false);
+    check(toast, "after a deploy, reopening the app shows \"A new version is ready\"");
+    if (toast) {
+      await p2.click(".toast button");
+      await p2.waitForSelector("html[data-ready='1']", { timeout: 30_000 });
+      await p2.click("button[aria-label^=\"About\"]");
+      const v = await p2.waitForFunction(() => /App version (\S+)\./.exec(document.querySelector(".sheet")?.textContent ?? "")?.[1], null, { timeout: 10_000 }).then((h) => h.jsonValue());
+      check(/-a$/.test(v), `Reload switches to the new version (${v})`);
+
+      await deploy("b");
+      await p2.click(".check-updates");
+      const toast2 = await p2.waitForSelector(".toast", { timeout: 30_000 }).then(() => true, () => false);
+      const st = await p2.textContent(".update-status");
+      check(toast2, `"Check for updates" finds a new version: "${st}"`);
+      await p2.click(".sheet-close");
+      await p2.click(".toast button");
+      await p2.waitForSelector("html[data-ready='1']", { timeout: 30_000 });
+      await p2.click("button[aria-label^=\"About\"]");
+      await p2.click(".check-updates");
+      await p2.waitForFunction(() => /latest/.test(document.querySelector(".update-status")?.textContent ?? ""), null, { timeout: 15_000 });
+      check(true, '"Check for updates" says "You have the latest version" when it does');
+    }
+  } finally {
+    await ctx2.close();
+    server2.kill();
+    await rm(copy, { recursive: true, force: true });
+  }
 } catch (e) {
   failures++;
   console.error("FAIL", e);

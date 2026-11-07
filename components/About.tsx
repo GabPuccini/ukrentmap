@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { monthName } from "@/lib/format";
 import type { Meta } from "@/lib/types";
 
@@ -11,6 +11,32 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const [version, setVersion] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  // Ask the service worker which version is running.
+  useEffect(() => {
+    const controller = typeof navigator !== "undefined" ? navigator.serviceWorker?.controller : null;
+    if (!controller) return;
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (e) => setVersion(String(e.data));
+    controller.postMessage("version", [channel.port2]);
+  }, []);
+
+  async function checkForUpdates() {
+    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+    if (!reg) return setStatus("The offline copy isn't installed in this browser, so there's nothing to update.");
+    setStatus("Checking…");
+    try {
+      await reg.update();
+    } catch {
+      return setStatus("Couldn't check. Are you offline?");
+    }
+    if (reg.installing) setStatus("A new version is downloading. You'll be asked to reload when it's ready.");
+    else if (reg.waiting) setStatus("A new version is ready: tap Reload at the top of the screen.");
+    else setStatus("You have the latest version.");
+  }
 
   const built = meta.built.slice(0, 10);
   return (
@@ -62,6 +88,14 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
           postcode data isn&apos;t open.
         </p>
 
+        <h3>Walking distance</h3>
+        <p>
+          The walking-person button finds the shortest walking route between two postcodes, on streets, footpaths, parks, towpaths and
+          footbridges from OpenStreetMap. Motorways and private ways are left out. The route is worked out on your phone, from map
+          tiles fetched from this site only for the area the route needs; nothing about your search is sent anywhere. Times assume 3 mph
+          (4.8 km/h). Northern Ireland postcodes can&apos;t be used, because their positions aren&apos;t open data.
+        </p>
+
         <h3>District shapes</h3>
         <p>
           Royal Mail&apos;s district boundaries aren&apos;t open data. These shapes are a Voronoi diagram of all{" "}
@@ -104,6 +138,13 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
             </a>
             , National Records of Scotland
           </li>
+          <li>
+            Walking paths:{" "}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              © OpenStreetMap contributors
+            </a>
+            , Open Database Licence (UK extract from openstreetmap.fr)
+          </li>
           <li>Northern Ireland BRMA postcode districts: Northern Ireland Housing Executive</li>
           <li>Map fonts: Noto Sans, SIL Open Font License</li>
         </ul>
@@ -117,7 +158,17 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
           . Contains public sector information from the Scottish Government and National Records of Scotland (Scotland&apos;s
           Census 2022) licensed under the Open Government Licence v3.0.
         </p>
-        <p className="small">Data built {built}. Downloaded {meta.fetched.slice(0, 10)}.</p>
+        <p className="small">
+          Data built {built}. Downloaded {meta.fetched.slice(0, 10)}.{version ? ` App version ${version}.` : ""}{" "}
+          <button className="link check-updates" onClick={checkForUpdates}>
+            Check for updates
+          </button>
+        </p>
+        {status && (
+          <p className="small update-status" role="status">
+            {status}
+          </p>
+        )}
       </div>
     </div>
   );
