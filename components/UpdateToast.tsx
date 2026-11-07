@@ -23,17 +23,25 @@ export default function UpdateToast() {
     const onVisible = () => {
       if (document.visibilityState === "visible") reg?.update().catch(() => {});
     };
+    const track = (w: ServiceWorker | null) => {
+      if (!w) return;
+      if (w.state === "installed" && sw.controller) setWaiting(w);
+      w.addEventListener("statechange", () => {
+        if (w.state === "installed" && sw.controller) setWaiting(w);
+      });
+    };
     sw.register(`${BASE}/sw.js`, { scope: `${BASE}/` })
       .then((r) => {
         reg = r;
-        if (r.waiting && sw.controller) setWaiting(r.waiting);
-        r.addEventListener("updatefound", () => {
-          const w = r.installing;
-          w?.addEventListener("statechange", () => {
-            if (w.state === "installed" && sw.controller) setWaiting(w);
-          });
-        });
+        // A new version may already be downloaded, or still downloading:
+        // opening the app starts the browser's update check before this
+        // code runs, so "updatefound" can fire before we listen for it.
+        track(r.waiting);
+        track(r.installing);
+        r.addEventListener("updatefound", () => track(r.installing));
         document.addEventListener("visibilitychange", onVisible);
+        // And check now, rather than relying on the browser to.
+        r.update().catch(() => {});
       })
       .catch((e) => console.warn("service worker:", e));
     return () => {

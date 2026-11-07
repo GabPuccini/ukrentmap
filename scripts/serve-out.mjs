@@ -6,9 +6,10 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
-import { extname, join, normalize } from "node:path";
+import { extname, join, normalize, resolve } from "node:path";
 
-const OUT = new URL("../out/", import.meta.url).pathname;
+// OUT_DIR serves another copy of the build (the update test uses one).
+const OUT = process.env.OUT_DIR ? resolve(process.env.OUT_DIR) + "/" : new URL("../out/", import.meta.url).pathname;
 const PORT = Number(process.env.PORT ?? 4173);
 // Detect the base path the build was made with from the exported index.html.
 const html = await import("node:fs/promises").then((fs) => fs.readFile(join(OUT, "index.html"), "utf8"));

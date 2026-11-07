@@ -8,7 +8,9 @@
 // Needs Playwright:  npm i -D playwright && npx playwright install chromium
 // Screenshots go to screenshots/.
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -224,6 +226,60 @@ try {
   await context.setOffline(false);
 
   check(errors.length === 0, `no console errors${errors.length ? ": " + errors.slice(0, 3).join(" / ") : ""}`);
+
+  // Updates: serve a copy of the build, "deploy" a new version into it, and
+  // check the installed app offers it and switches to it.
+  const copy = await mkdtemp(join(tmpdir(), "ukrentmap-update-"));
+  await cp(new URL("../out/", import.meta.url).pathname, copy, { recursive: true });
+  const server2 = spawn(process.execPath, [new URL("./serve-out.mjs", import.meta.url).pathname], {
+    env: { ...process.env, PORT: String(PORT + 1), OUT_DIR: copy },
+    stdio: "ignore",
+  });
+  await new Promise((r) => setTimeout(r, 800));
+  const url2 = base.replace(String(PORT), String(PORT + 1));
+  const deploy = async (tag) => {
+    const sw = join(copy, "sw.js");
+    await writeFile(sw, (await readFile(sw, "utf8")).replace(/const VERSION = "([^"]+)"/, `const VERSION = "$1-${tag}"`));
+  };
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  try {
+    const p2 = await ctx2.newPage();
+    await p2.goto(url2);
+    await p2.waitForSelector("html[data-ready='1']", { timeout: 60_000 });
+    await p2.evaluate(() => navigator.serviceWorker.ready);
+    await p2.reload();
+    await p2.waitForSelector("html[data-ready='1']");
+
+    await deploy("a");
+    await p2.reload();
+    await p2.waitForSelector("html[data-ready='1']");
+    const toast = await p2.waitForSelector(".toast", { timeout: 30_000 }).then(() => true, () => false);
+    check(toast, "after a deploy, reopening the app shows \"A new version is ready\"");
+    if (toast) {
+      await p2.click(".toast button");
+      await p2.waitForSelector("html[data-ready='1']", { timeout: 30_000 });
+      await p2.click(".icon-btn");
+      const v = await p2.waitForFunction(() => /App version (\S+)\./.exec(document.querySelector(".sheet")?.textContent ?? "")?.[1], null, { timeout: 10_000 }).then((h) => h.jsonValue());
+      check(/-a$/.test(v), `Reload switches to the new version (${v})`);
+
+      await deploy("b");
+      await p2.click(".check-updates");
+      const toast2 = await p2.waitForSelector(".toast", { timeout: 30_000 }).then(() => true, () => false);
+      const st = await p2.textContent(".update-status");
+      check(toast2, `"Check for updates" finds a new version: "${st}"`);
+      await p2.click(".sheet-close");
+      await p2.click(".toast button");
+      await p2.waitForSelector("html[data-ready='1']", { timeout: 30_000 });
+      await p2.click(".icon-btn");
+      await p2.click(".check-updates");
+      await p2.waitForFunction(() => /latest/.test(document.querySelector(".update-status")?.textContent ?? ""), null, { timeout: 15_000 });
+      check(true, '"Check for updates" says "You have the latest version" when it does');
+    }
+  } finally {
+    await ctx2.close();
+    server2.kill();
+    await rm(copy, { recursive: true, force: true });
+  }
 } catch (e) {
   failures++;
   console.error("FAIL", e);
