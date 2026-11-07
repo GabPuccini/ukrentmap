@@ -30,6 +30,9 @@ The repository already contains the built data, so that is all you need. Python 
 - **Who lives here:** every popup also shows the ethnic groups of the district's own residents, from the census (2021 for England
   and Wales, 2022 for Scotland). It has a bar and five labelled broad groups, with the detailed groups under "More detail". See
   [Census ethnicity](#census-ethnicity).
+- **Walking distance:** the walking-person button opens From and To boxes. Type two postcodes, press Go, and you get the shortest
+  walking route on streets and footpaths, drawn on the map, with distance and time. It's worked out on the phone. See
+  [Walking distance](#walking-distance).
 - Search: a full postcode (`SW1A 1AA`), a sector (`M14 5`) or a district (`CF10`). It flies there and opens the popup. Lookup runs
   on the device against the bundled postcode files. There is no geocoding service.
 - Data month is in the header: **September 2026** for Great Britain, **July 2026** for Northern Ireland (the latest ONS has).
@@ -48,6 +51,7 @@ Everything is free and open. No API keys, no runtime calls to anyone else's serv
 | Ethnic group, England & Wales | [ONS Census 2021, TS021](https://www.ons.gov.uk/datasets/TS021), output areas, via the [Nomis bulk download](https://www.nomisweb.co.uk/output/census/2021/census2021-ts021.zip) | Census Day 21 March 2021 | OGL v3.0 |
 | Ethnic group, Scotland | [Scotland's Census 2022, UV201](https://www.scotlandscensus.gov.uk/documents/2022-output-area-data/), output areas (National Records of Scotland) | Census Day 20 March 2022 | OGL v3.0 |
 | Postcode → census output area | ONS Postcode Directory (August 2026), GB rows only | Aug 2026 | OGL v3.0 |
+| Walking network | [OpenStreetMap](https://www.openstreetmap.org/copyright), via [Geofabrik](https://download.geofabrik.de/europe/united-kingdom.html) extracts for England, Scotland and Wales | __OSMDATE__ | ODbL 1.0 |
 | NI rent areas by postcode district | Northern Ireland Housing Executive, as compiled in [nick-bailey/Postcode-to-BRMA-lookup](https://github.com/nick-bailey/Postcode-to-BRMA-lookup) (OGL) | May 2024 | OGL v3.0 |
 | Map fonts | Noto Sans glyphs from [protomaps/basemaps-assets](https://github.com/protomaps/basemaps-assets) | | SIL OFL 1.1 |
 
@@ -103,6 +107,33 @@ The popup's "Who lives here" section shows the ethnic groups of the district's u
 These figures change once a decade, so they aren't part of the weekly refresh. `public/data/ethnicity.json` is built once by
 `npm run data:ethnicity` (`scripts/build_ethnicity.py`, about 3 minutes, mostly downloading the postcode lookup). Re-run it only to
 pick up newly created postcode districts.
+
+### Walking distance
+
+Tap the walking-person button, type a **From** and a **To** postcode (or a district such as `M14`), and press **Go**. The app draws the
+shortest walking route with A and B markers and shows, e.g., "2.3 km (1.4 mi) · about 29 min on foot", plus the straight-line
+distance for comparison.
+
+- **The network.** It's built from OpenStreetMap: __KM__ km of footpaths, pavements, streets, pedestrian areas, steps, tracks,
+  bridleways, cycleways, towpaths and footbridges across Great Britain. Left out: motorways, anything tagged `foot=no` or private,
+  driveways and car-park aisles. Separately mapped pavements are also left out, because the street they run beside is already walkable;
+  that halves the size in cities without changing the distance meaningfully.
+- **On the phone.** The network is split into __TILES__ compressed tiles of about 5 × 5 km (__MB__ MB in total). A route downloads
+  only the tiles it passes through, typically a few hundred KB, and the service worker keeps them, so a route you've done works
+  offline. The search is A* from the nearest path to each postcode. It is exact for the network: the true shortest path, not an
+  estimate.
+- **Distances** include the short walk from each postcode's centre to the nearest path. **Times** assume 3 mph (4.8 km/h).
+- **Limits.**
+  - Routes are offered up to 40 km apart in a straight line.
+  - Northern Ireland postcodes can't be used, because their positions aren't open data.
+  - Walking ferries aren't included.
+  - OpenStreetMap is as good as its mappers: a missing footpath means a longer route.
+- **Licence.** OpenStreetMap data is © OpenStreetMap contributors under the Open Database Licence. The app credits it wherever a
+  route is shown, and the tiles in `public/data/walk/` are published under the same licence (`public/data/walk/LICENSE`).
+- **Rebuilding.** OpenStreetMap changes daily, but walking routes barely move, so this isn't part of the weekly refresh. Run
+  `npm run data:walk` (`scripts/build_walk.py`) once in a while. It needs `osmium-tool` (`sudo apt-get install osmium-tool`, or
+  `brew install osmium-tool`) and the Python packages in `scripts/requirements.txt`. It downloads about 1.9 GB and takes about
+  __MINUTES__ minutes.
 
 ## Refreshing the data
 
@@ -194,7 +225,8 @@ version you're running.
 ## Privacy
 
 - No accounts, no cookies, no analytics, no third-party requests: tiles, fonts and data all come from the site itself.
-- Searches never leave the phone.
+- Searches and walking routes never leave the phone: the route is worked out on the device from map tiles fetched from this
+  site.
 - `noindex` and `robots.txt` keep the site out of search engines.
 - The URL is public, like Phthalo's: anyone who has it can open the map, which only shows public government data. If you ever want it
   locked to you alone, it would need a host with a login in front (e.g. Cloudflare Pages + Cloudflare Access, free for personal use).
@@ -211,6 +243,8 @@ npm run build:pages && npm test
 - the map renders, the header shows the data month, the legend has £ stops, and there's no horizontal scroll
 - search: a postcode opens the right popup with the 1/2/3/4+ breakdown and source; district, NI and unknown postcodes are handled
 - census ethnicity: M14's five groups add up to 100%, EH1 shows Scotland's 2022 census, and NI explains why it has none
+- walking: Buckingham Palace to Parliament is a sensible distance with the route and A/B markers drawn, a Manchester walk crosses
+  tiles, an NI postcode and a too-far walk get clear messages, closing clears the route, and the route works again offline
 - the bedroom selector and colour-blind toggle repaint the map and the open popup
 - tapping a district opens its popup
 - London labels are culled with **zero overlaps**
@@ -230,20 +264,22 @@ app/                  Next.js App Router shell (static export, one page)
 components/
   RentMap.tsx         MapLibre map, style, popups, hover, search wiring
   Controls.tsx        bedroom selector, colour-blind toggle, legend, attribution
-  SearchBox.tsx  About.tsx  UpdateToast.tsx
+  SearchBox.tsx  About.tsx  UpdateToast.tsx  WalkPanel.tsx
 lib/
   colors.ts           ramps and the percentile-stop fill expression
   search.ts           on-device postcode parsing and lookup
   popup.ts            popup content (built with DOM calls, never HTML strings)
+  walk/tiles.ts       walking-network tile index, download and decoding
+  walk/router.ts      snapping to the nearest path and the A* route search
 public/
   data/               built data (committed): districts.pmtiles, districts.json, ethnicity.json, labels.geojson, ni.geojson,
-                      meta.json, pc/*.txt
+                      meta.json, pc/*.txt, walk/ (walking network tiles, ODbL)
   fonts/              glyphs for map labels
   icons/              app icons (scripts/make_icons.py)
   sw.js               service worker (stamped with a content hash at build)
   manifest.webmanifest  robots.txt
 scripts/
-  fetch_data.py  build_data.py  data_changed.py  build_ethnicity.py  ni_outcode_brma.csv  requirements.txt
+  fetch_data.py  build_data.py  data_changed.py  build_ethnicity.py  build_walk.py  ni_outcode_brma.csv  requirements.txt
   postbuild.mjs       writes the precache list and version into out/sw.js
   copy-vendor.mjs     copies MapLibre's worker into public/vendor/ (MapLibre 6 needs setWorkerUrl under a bundler)
   serve-out.mjs       local static server with byte ranges, for preview and tests

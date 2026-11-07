@@ -2,7 +2,7 @@
  *
  * The app shell, map tiles, fonts and district data are cached on install,
  * so the app opens and works offline from the home screen. Postcode search
- * files are cached the first time each one is used.
+ * files and walking-route tiles are cached the first time each one is used.
  *
  * scripts/postbuild.mjs replaces the two placeholders below at build time:
  * VERSION is a hash of every cached file, so any change to the app or data
@@ -12,7 +12,8 @@ const VERSION = "__VERSION__";
 const PRECACHE = __PRECACHE__;
 
 const CORE = `core-${VERSION}`;
-const POSTCODES = `postcodes-${VERSION}`;
+// Postcode files and walking tiles: cached the first time each is used.
+const ONDEMAND = `ondemand-${VERSION}`;
 const scope = new URL(self.registration.scope);
 
 self.addEventListener("install", (event) => {
@@ -31,7 +32,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       for (const key of await caches.keys()) {
-        if (key !== CORE && key !== POSTCODES) await caches.delete(key);
+        if (key !== CORE && key !== ONDEMAND) await caches.delete(key);
       }
       await self.clients.claim();
     })(),
@@ -86,8 +87,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.open(CORE).then((c) => c.match(scope.href).then((hit) => hit || fetch(request))),
     );
-  } else if (url.pathname.startsWith(scope.pathname + "data/pc/")) {
-    event.respondWith(cacheFirst(request, POSTCODES));
+  } else if (url.pathname.startsWith(scope.pathname + "data/pc/") || url.pathname.startsWith(scope.pathname + "data/walk/")) {
+    event.respondWith(cacheFirst(request, ONDEMAND));
   } else {
     event.respondWith(cacheFirst(request, CORE));
   }

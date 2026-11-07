@@ -12,6 +12,8 @@ import About from "./About";
 import Controls from "./Controls";
 import SearchBox from "./SearchBox";
 import UpdateToast from "./UpdateToast";
+import WalkPanel from "./WalkPanel";
+import type { WalkRoute } from "@/lib/walk/router";
 
 declare global {
   interface Window {
@@ -47,6 +49,7 @@ function buildStyle(meta: Meta, beds: Beds, cvd: boolean): StyleSpecification {
       ni: { type: "geojson", data: asset("/data/ni.geojson") },
       // One point for the NI label: a polygon label would repeat in every tile.
       "ni-point": { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [-6.72, 54.6] } } },
+      walk: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
     },
     layers: [
       { id: "sea", type: "background", paint: { "background-color": "#d4e3ea" } },
@@ -112,6 +115,44 @@ function buildStyle(meta: Meta, beds: Beds, cvd: boolean): StyleSpecification {
           "text-opacity": ["interpolate", ["linear"], ["zoom"], LABEL_ZOOM, 0, LABEL_ZOOM + 1, 1],
         },
       },
+      // Walking route: a dark line with a white casing reads on every rent colour.
+      {
+        id: "walk-casing",
+        type: "line",
+        source: "walk",
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#ffffff", "line-width": ["interpolate", ["linear"], ["zoom"], 8, 5, 14, 9] },
+      },
+      {
+        id: "walk-line",
+        type: "line",
+        source: "walk",
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#1b1464", "line-width": ["interpolate", ["linear"], ["zoom"], 8, 2.5, 14, 5] },
+      },
+      {
+        id: "walk-ends",
+        type: "circle",
+        source: "walk",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: { "circle-radius": 9, "circle-color": "#1b1464", "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
+      },
+      {
+        id: "walk-ends-label",
+        type: "symbol",
+        source: "walk",
+        filter: ["==", ["geometry-type"], "Point"],
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": ["Noto Sans Medium"],
+          "text-size": 11,
+          "text-allow-overlap": true,
+          "text-ignore-placement": true,
+        },
+        paint: { "text-color": "#ffffff" },
+      },
     ],
   };
 }
@@ -148,6 +189,7 @@ export default function RentMap() {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [walkOpen, setWalkOpen] = useState(false);
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
   const state = useRef({ beds, cvd, meta, data, eth });
   state.current = { beds, cvd, meta, data, eth };
@@ -376,6 +418,42 @@ export default function RentMap() {
     [closePopup, showPopup],
   );
 
+  const showRoute = useCallback(
+    (route: WalkRoute, from: string, to: string) => {
+      const map = mapRef.current;
+      const ml = mlRef.current;
+      if (!map || !ml) return;
+      closePopup();
+      const end = (at: [number, number], label: string, name: string): GeoJSON.Feature => ({
+        type: "Feature",
+        properties: { label, name },
+        geometry: { type: "Point", coordinates: at },
+      });
+      (map.getSource("walk") as GeoJSONSource).setData({
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route.coords } },
+          end(route.coords[0], "A", from),
+          end(route.coords[route.coords.length - 1], "B", to),
+        ],
+      });
+      const bounds = new ml.LngLatBounds();
+      route.coords.forEach((c) => bounds.extend(c));
+      const box = map.getContainer().getBoundingClientRect();
+      const top = (document.querySelector(".top")?.getBoundingClientRect().bottom ?? 0) - box.top + 20;
+      const bottom = box.bottom - (document.querySelector(".panel")?.getBoundingClientRect().top ?? box.bottom) + 20;
+      map.fitBounds(bounds, { padding: { top, bottom, left: 30, right: 30 }, maxZoom: 16, duration: 900 });
+    },
+    [closePopup],
+  );
+
+  const toggleWalk = () => {
+    if (walkOpen) {
+      (mapRef.current?.getSource("walk") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: [] });
+    }
+    setWalkOpen(!walkOpen);
+  };
+
   const scale = meta?.scale[beds];
 
   return (
@@ -385,14 +463,35 @@ export default function RentMap() {
         <div className="title">
           <h1>UK Rent Map</h1>
           <p>
-            Average private rent{meta ? ` · ${monthName(meta.rentMonth, true)}` : ""}
+            Private rents{meta ? ` · ${monthName(meta.rentMonth, true)}` : ""}
             {meta?.rentMonthNI && meta.rentMonthNI !== meta.rentMonth ? ` (NI ${monthName(meta.rentMonthNI, true)})` : ""}
           </p>
         </div>
-        <button className="icon-btn" onClick={() => setAboutOpen(true)} aria-label="About this map, sources and licences">
-          i
-        </button>
-        <SearchBox onSearch={search} disabled={!ready} />
+        <div className="top-buttons">
+          <button
+            className="icon-btn walk-btn"
+            onClick={toggleWalk}
+            aria-pressed={walkOpen}
+            aria-label={walkOpen ? "Close walking distance" : "Walking distance between two postcodes"}
+            title="Walking distance"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <circle cx="13.5" cy="3.8" r="2.1" fill="currentColor" />
+              <path
+                d="M10.6 21.2l1.6-6.1 2.7 2.6v3.5M12.2 15.1l.9-5.3M13.1 9.8l-2.9 1.6-1.1 3.1M13.1 9.8l1.6 2.6 3 .9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <button className="icon-btn" onClick={() => setAboutOpen(true)} aria-label="About this map, sources and licences">
+            i
+          </button>
+        </div>
+        {walkOpen ? <WalkPanel data={data} onRoute={showRoute} /> : <SearchBox onSearch={search} disabled={!ready} />}
       </header>
       {scale && <Controls beds={beds} onBeds={chooseBeds} cvd={cvd} onCvd={toggleCvd} stops={scale} percentiles={meta!.percentiles} onAbout={() => setAboutOpen(true)} />}
       {tip && (

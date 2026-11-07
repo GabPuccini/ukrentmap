@@ -88,6 +88,14 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
           postcode data isn&apos;t open.
         </p>
 
+        <h3>Walking distance</h3>
+        <p>
+          The walking-person button finds the shortest walking route between two postcodes, on streets, footpaths, parks, towpaths and
+          footbridges from OpenStreetMap. Motorways and private ways are left out. The route is worked out on your phone, from map
+          tiles fetched from this site only for the area the route needs; nothing about your search is sent anywhere. Times assume 3 mph
+          (4.8 km/h). Northern Ireland postcodes can&apos;t be used, because their positions aren&apos;t open data.
+        </p>
+
         <h3>District shapes</h3>
         <p>
           Royal Mail&apos;s district boundaries aren&apos;t open data. These shapes are a Voronoi diagram of all{" "}
@@ -129,6 +137,13 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
               Scotland&apos;s Census 2022, UV201 Ethnic group
             </a>
             , National Records of Scotland
+          </li>
+          <li>
+            Walking paths:{" "}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              © OpenStreetMap contributors
+            </a>
+            , Open Database Licence (via Geofabrik)
           </li>
           <li>Northern Ireland BRMA postcode districts: Northern Ireland Housing Executive</li>
           <li>Map fonts: Noto Sans, SIL Open Font License</li>

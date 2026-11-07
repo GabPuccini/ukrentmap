@@ -8,10 +8,10 @@ import { join, relative, sep } from "node:path";
 
 const OUT = new URL("../out/", import.meta.url).pathname;
 
-// Cached on demand instead of up front: 120 files, about 21 MB.
+// Cached on demand instead of up front: postcode files (21 MB) and walking tiles.
 // The maplibre-gl*.mjs copies Turbopack emits under _next/static/media are
 // never loaded: the app points MapLibre at public/vendor/ instead.
-const SKIP = [/^_next\/static\/media\/maplibre-gl/, /^data\/pc\//, /^sw\.js$/, /\.map$/, /^robots\.txt$/, /^\.nojekyll$/, /^404/, /^_not-found/, /\.txt$/];
+const SKIP = [/^_next\/static\/media\/maplibre-gl/, /^data\/pc\//, /^data\/walk\//, /^sw\.js$/, /\.map$/, /^robots\.txt$/, /^\.nojekyll$/, /^404/, /^_not-found/, /\.txt$/];
 
 async function walk(dir) {
   const out = [];

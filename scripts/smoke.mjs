@@ -201,6 +201,33 @@ try {
   const popEC = await page.textContent(".rent-popup");
   check(/No data/.test(popEC) && /grey rather than guessed/.test(popEC), "City of London shows No data, grey");
 
+  // Walking distance between two postcodes, worked out on the device.
+  const walk = async (from, to) => {
+    await page.fill(".walk input >> nth=0", from);
+    await page.fill(".walk input >> nth=1", to);
+    await page.click(".walk button");
+    await page.waitForFunction(() => document.querySelector(".walk-result") || document.querySelector(".walk-msg:not(:empty)")?.textContent?.match(/can't|No |too far|no walk/i), null, { timeout: 90_000 });
+    const text = (await page.textContent(".walk-result").catch(() => null)) ?? (await page.textContent(".walk-msg"));
+    const km = parseFloat(/([\d.]+) km/.exec(text ?? "")?.[1] ?? (/(\d+) m \(/.exec(text ?? "") ? String(Number(/(\d+) m \(/.exec(text)[1]) / 1000) : "NaN"));
+    return { text, km };
+  };
+  await page.click(".walk-btn");
+  const w1 = await walk("SW1A 1AA", "SW1A 0AA");
+  check(w1.km > 1.0 && w1.km < 2.6 && /min on foot/.test(w1.text), `walk Buckingham Palace -> Parliament: ${w1.text?.split("→")[0]}`);
+  const route = await page.evaluate(async () => (await window.__map.getSource("walk").getData()).features);
+  check(route.length === 3 && route[0].geometry.coordinates.length > 10, `route and A/B markers drawn (${route[0]?.geometry.coordinates.length} points)`);
+  await waitIdle();
+  await page.screenshot({ path: SHOTS + "phone-390-walk.png" });
+  const w2 = await walk("M14 7EE", "M1 1AD");
+  check(w2.km > 3 && w2.km < 7, `walk Fallowfield -> Manchester centre, across tiles: ${w2.text?.split("→")[0]}`);
+  const w3 = await walk("M14 7EE", "BT9 5AB");
+  check(/Northern Ireland/.test(w3.text ?? ""), `walk to a BT postcode explains NI: "${w3.text}"`);
+  const w4 = await walk("M14 7EE", "EH1 1YZ");
+  check(/too far/.test(w4.text ?? ""), "Manchester to Edinburgh is refused as too far to walk");
+  await page.click(".walk-btn");
+  const cleared = await page.evaluate(async () => (await window.__map.getSource("walk").getData()).features.length);
+  check(cleared === 0 && !!(await page.$(".search")), "closing walk mode clears the route and brings search back");
+
   // Installability and offline.
   const manifest = await page.evaluate(async () => (await fetch(document.querySelector("link[rel=manifest]").href)).json());
   check(manifest.display === "standalone" && manifest.icons.length >= 2, "manifest: standalone with icons");
@@ -223,6 +250,10 @@ try {
   await page.click(".search button");
   await page.waitForSelector(".rent-popup .pp-code", { timeout: 20_000 });
   check(true, "offline search for a postcode used before works");
+  await page.click(".walk-btn");
+  const wOff = await walk("SW1A 1AA", "SW1A 0AA");
+  check(Math.abs(wOff.km - w1.km) < 0.05, `offline walk on tiles used before: ${wOff.text?.split("→")[0]}`);
+  await page.click(".walk-btn");
   await context.setOffline(false);
 
   check(errors.length === 0, `no console errors${errors.length ? ": " + errors.slice(0, 3).join(" / ") : ""}`);
