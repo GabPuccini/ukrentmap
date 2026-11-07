@@ -5,7 +5,7 @@ Average private rent for every UK postcode district, as a colour-coded map: gree
 
 <img src="screenshots/phone-390-uk.png" width="300" alt="The map at 390px phone width"> <img src="screenshots/phone-390-manchester.png" width="300" alt="Popup for M14 in Manchester">
 
-Live (once deployed): **https://gabpuccini.github.io/ukrentmap/**
+Live: **https://gabpuccini.github.io/ukrentmap/**
 
 ```sh
 npm install && npm run dev      # http://localhost:3000
@@ -78,7 +78,30 @@ Required attribution (shown in the app's key and in its About sheet):
 
 ## Refreshing the data
 
-ONS publishes PIPR monthly (next release 18 November 2026) and OS refreshes Code-Point Open quarterly.
+ONS publishes PIPR monthly, on a Wednesday in the second half of the month (next: 18 November 2026). OS refreshes Code-Point Open
+quarterly.
+
+### Automatically, every week
+
+`.github/workflows/refresh-data.yml` runs on GitHub every **Thursday at 05:17 UTC**:
+
+1. It downloads the latest sources (`scripts/fetch_data.py`).
+2. It asks `scripts/data_changed.py` whether anything new was published, comparing the ONS edition and the Code-Point checksum with
+   those in `public/data/meta.json`. If nothing is new, it stops there.
+3. If there is new data, it rebuilds `public/data/`. `build_data.py` refuses to write anything that fails its safety checks: too few
+   postcodes, districts or rent areas, too many districts without a rent, or a rent month older than the one already live.
+4. It checks the site still type-checks and builds.
+5. It commits the new data to `main` as `github-actions[bot]` and starts **Deploy to GitHub Pages**. Installed copies of the app show
+   "A new version is ready".
+
+If any step fails, nothing is committed, the live map keeps its current data, and GitHub emails you about the failed run. To run it by
+hand: **Actions → Refresh data → Run workflow**. Tick **force** to rebuild and publish even when nothing new has been released.
+
+Each monthly update adds roughly 10 MB to the repository's history (mostly the tiles, which carry the rents). GitHub switches off
+scheduled workflows in public repositories after 60 days without activity. The monthly data commits count as activity, so this keeps
+itself going as long as ONS keeps publishing. If it ever stops, the Actions tab offers an **Enable workflow** button.
+
+### By hand
 
 ```sh
 # one-off setup: Python 3.11+ and tippecanoe
@@ -117,7 +140,8 @@ git push origin main
 ```
 
 Then watch **Actions → Deploy to GitHub Pages**. When it's green the app is at https://gabpuccini.github.io/ukrentmap/. To redeploy
-without a change: **Actions → Deploy to GitHub Pages → Run workflow**.
+without a change: **Actions → Deploy to GitHub Pages → Run workflow**. The weekly data refresh starts this deploy itself after
+committing new data.
 
 To check a Pages build locally first:
 
@@ -185,7 +209,7 @@ public/
   sw.js               service worker (stamped with a content hash at build)
   manifest.webmanifest  robots.txt
 scripts/
-  fetch_data.py  build_data.py  ni_outcode_brma.csv  requirements.txt
+  fetch_data.py  build_data.py  data_changed.py  ni_outcode_brma.csv  requirements.txt
   postbuild.mjs       writes the precache list and version into out/sw.js
   copy-vendor.mjs     copies MapLibre's worker into public/vendor/ (MapLibre 6 needs setWorkerUrl under a bundler)
   serve-out.mjs       local static server with byte ranges, for preview and tests
