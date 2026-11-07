@@ -13,3 +13,4 @@ public/vendor/
 next-env.d.ts
 AGENTS.md
 tsconfig.tsbuildinfo
+screenshots/failure.png
