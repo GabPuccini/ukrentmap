@@ -187,7 +187,9 @@ Same as Phthalo. Open https://gabpuccini.github.io/ukrentmap/ once and let it fi
 
 It opens full screen without browser bars and works in flight mode. Postcode files (21 MB in all) are cached per postcode area the
 first time you search one, so offline search works for areas you've searched before; district search always works offline. After a
-deploy, the app shows **"A new version is ready"** with a Reload button the next time it's opened.
+deploy, the app shows **"A new version is ready"** with a Reload button the next time it's opened. GitHub's servers can take up to
+10 minutes to hand out a new version. To check by hand, open **(i)** and tap **Check for updates**; that sheet also shows the app
+version you're running.
 
 ## Privacy
 
@@ -214,6 +216,8 @@ npm run build:pages && npm test
 - London labels are culled with **zero overlaps**
 - the City of London shows "No data" in grey
 - the manifest is installable and the service worker takes control
+- after a simulated deploy, the app offers "A new version is ready", Reload switches to it, and **Check for updates** finds the
+  next one (and says "You have the latest version" when there isn't one)
 - the map reloads and searches **offline**
 - there are no console errors
 

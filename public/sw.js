@@ -23,6 +23,8 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data === "skip-waiting") self.skipWaiting();
+  // The About sheet asks which version is running.
+  if (event.data === "version") event.ports[0]?.postMessage(VERSION);
 });
 
 self.addEventListener("activate", (event) => {
