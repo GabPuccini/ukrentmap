@@ -252,6 +252,39 @@ def round_coords(obj, nd=5):
     return obj
 
 
+# --------------------------------------------------------------------- safety net
+
+
+def check_sane(df: pd.DataFrame, rents: dict, districts: dict, polys: dict) -> None:
+    """Stop before writing anything if the new data looks wrong.
+
+    The weekly refresh publishes whatever this script produces, so a changed
+    ONS spreadsheet or a half-empty download must fail loudly here rather
+    than reach the live map. The thresholds sit well below today's figures
+    (1.75M postcodes, 2,863 districts, 357 rent areas, 22 without data).
+    """
+    problems = []
+    if len(df) < 1_600_000:
+        problems.append(f"only {len(df):,} postcodes")
+    if len(districts) < 2_700 or len(polys) < 2_700:
+        problems.append(f"only {len(districts):,} districts / {len(polys):,} shapes")
+    gb_areas = [k for k in rents if not k.startswith("NI:")]
+    if len(gb_areas) < 300:
+        problems.append(f"only {len(gb_areas)} rent areas")
+    missing = [d for d, i in districts.items() if i["ra"] not in rents]
+    if len(missing) > 60:
+        problems.append(f"{len(missing)} districts without a rent")
+    previous = OUT / "meta.json"
+    if previous.exists():
+        old = json.loads(previous.read_text()).get("rentMonth") or ""
+        new = max((r["month"] for k, r in rents.items() if not k.startswith("NI:")), default="")
+        if new < old:
+            problems.append(f"rents went backwards: {new} is older than the published {old}")
+    if problems:
+        raise RuntimeError("data failed the safety checks, nothing written: " + "; ".join(problems))
+    log("safety checks passed")
+
+
 # --------------------------------------------------------------------------- main
 
 
@@ -335,6 +368,7 @@ def main() -> int:
     land = shapely.union_all(gb_parts)
     polys = district_polygons(df, land)
     log(f"{len(polys):,} district polygons")
+    check_sane(df, rents, districts, polys)
 
     # ------------------------------------------------------------- outputs
     log("writing GeoJSON for tippecanoe and label points")

@@ -1,5 +1,6 @@
 # Builds the static site and publishes it to GitHub Pages on every push to main.
 # One-time setup: Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+# Also started by the weekly data refresh (refresh-data.yml) after it commits new data.
 name: Deploy to GitHub Pages
 
 on:
@@ -20,8 +21,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -31,7 +32,7 @@ jobs:
         env:
           NEXT_PUBLIC_BASE_PATH: /ukrentmap
           NEXT_TELEMETRY_DISABLED: 1
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: out
 
@@ -43,4 +44,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
