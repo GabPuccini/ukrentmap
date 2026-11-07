@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+data-raw/
+*.part
+__pycache__/
+.venv/
+test-results/
+screenshots/tmp/
+.DS_Store
+*.log
+public/vendor/
+next-env.d.ts
+AGENTS.md
+tsconfig.tsbuildinfo
