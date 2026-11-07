@@ -271,24 +271,31 @@ input {
 
 /* ---------------------------------------------------------------- popup */
 
+/* The popup box itself never scrolls; its inner .pp does. A scrolling popup
+   box over the WebGL canvas left a blank strip under it in Chromium. */
 .rent-popup .maplibregl-popup-content {
-  padding: 12px 14px 10px;
+  padding: 0;
   border-radius: 12px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
-  max-height: var(--pp-max, min(56vh, 460px));
-  overflow-y: auto;
+  overflow: hidden;
 }
 .rent-popup .maplibregl-popup-close-button {
   width: 32px;
   height: 32px;
   font-size: 20px;
-  right: 2px;
-  top: 2px;
+  right: 4px;
+  top: 4px;
   border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  z-index: 1;
 }
 .pp {
   font-size: 13.5px;
   width: 100%;
+  max-height: var(--pp-max, min(56vh, 460px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 10px;
 }
 .pp-head {
   display: flex;
@@ -357,6 +364,66 @@ input {
 }
 .pp-src {
   font-size: 11px;
+}
+
+/* Who lives here: census ethnic groups */
+.pp-eth {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+.pp-eth h4 {
+  margin: 0;
+  font-size: 14px;
+}
+.pp-eth-sub {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.eth-bar {
+  display: flex;
+  gap: 2px; /* surface gap between segments */
+  height: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+.eth-bar span {
+  flex-basis: 0;
+  min-width: 2px;
+}
+.eth-list {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.eth-list th {
+  text-align: left;
+  font-weight: 400;
+  padding: 1.5px 0;
+}
+.eth-list td {
+  text-align: right;
+  padding: 1.5px 0 1.5px 8px;
+  white-space: nowrap;
+}
+.eth-more {
+  margin-top: 4px;
+  font-size: 12.5px;
+}
+.eth-more summary {
+  cursor: pointer;
+  color: #0b5d6b;
+  padding: 4px 0;
+}
+.eth-more .eth-list {
+  font-size: 12.5px;
+}
+.eth-more .sw {
+  width: 9px;
+  height: 9px;
 }
 
 /* ---------------------------------------------------------------- misc */

@@ -19,6 +19,7 @@
     "data": "python3 scripts/fetch_data.py && python3 scripts/build_data.py",
     "data:fetch": "python3 scripts/fetch_data.py",
     "data:build": "python3 scripts/build_data.py",
+    "data:ethnicity": "python3 scripts/build_ethnicity.py",
     "icons": "python3 scripts/make_icons.py"
   },
   "dependencies": {

@@ -1,6 +1,15 @@
-import { colourFor, textOn } from "./colors";
+import { colourFor, ETHNIC_COLOURS, textOn } from "./colors";
 import { COUNTRY, monthName, pounds } from "./format";
-import { BED_KEYS, BED_LABEL, RENT_INDEX, type Beds, type DistrictData, type Meta, type RentArea } from "./types";
+import {
+  BED_KEYS,
+  BED_LABEL,
+  RENT_INDEX,
+  type Beds,
+  type DistrictData,
+  type EthnicityData,
+  type Meta,
+  type RentArea,
+} from "./types";
 
 type Child = Node | string | null | undefined | false;
 
@@ -51,7 +60,78 @@ function source(area: RentArea | undefined, meta: Meta): HTMLElement {
   );
 }
 
-export function districtPopup(code: string, data: DistrictData, meta: Meta, beds: Beds, cvd: boolean): HTMLElement {
+const pct = (v: number) => `${v.toFixed(1)}%`;
+
+function swatch(colour: string): HTMLElement {
+  const s = el("span", "sw");
+  s.style.background = colour;
+  return s;
+}
+
+/** Who lives in the district: census ethnic groups as a 100% bar, a labelled list, and a detailed breakdown. */
+function ethnicitySection(code: string, eth: EthnicityData | null | false): HTMLElement {
+  const sec = el("section", "pp-eth");
+  if (!eth) {
+    const msg = eth === false ? "Census figures couldn't be loaded. Reload to try again." : "Loading census figures…";
+    add(sec, el("h4", undefined, "Who lives here"), el("p", "pp-note", msg));
+    return sec;
+  }
+  const e = eth.d[code];
+  const census = e?.y === 2022 ? "Scotland's Census 2022" : "Census 2021";
+  add(sec, el("h4", undefined, "Who lives here"), el("p", "pp-eth-sub", `Ethnic group of residents, ${census}`));
+  if (!e) {
+    sec.append(el("p", "pp-note", "No census residents are recorded at this district's postcodes (often business or PO box districts)."));
+    return sec;
+  }
+  if (!e.g) {
+    sec.append(el("p", "pp-note", `Only ${e.t.toLocaleString("en-GB")} residents: too few for reliable percentages.`));
+    return sec;
+  }
+  const groups = eth.meta.groups;
+  const bar = el("div", "eth-bar");
+  bar.setAttribute("role", "img");
+  bar.setAttribute("aria-label", groups.map((g, i) => `${g} ${pct(e.g![i])}`).join(", "));
+  e.g.forEach((v, i) => {
+    if (v <= 0) return;
+    const seg = el("span");
+    seg.style.flexGrow = String(v);
+    seg.style.background = ETHNIC_COLOURS[i];
+    seg.title = `${groups[i]}: ${pct(v)}`;
+    bar.append(seg);
+  });
+  const list = el("table", "eth-list");
+  const body = el("tbody");
+  e.g.forEach((v, i) => body.append(el("tr", undefined, el("th", undefined, swatch(ETHNIC_COLOURS[i]), groups[i]), el("td", undefined, pct(v)))));
+  list.append(body);
+  add(sec, bar, list);
+  if (e.d?.length) {
+    const more = el("details", "eth-more");
+    const t = el("table", "eth-list");
+    const tb = el("tbody");
+    for (const [label, gi, v] of e.d) tb.append(el("tr", undefined, el("th", undefined, swatch(ETHNIC_COLOURS[gi]), label), el("td", undefined, pct(v))));
+    t.append(tb);
+    add(more, el("summary", undefined, "More detail"), t);
+    sec.append(more);
+  }
+  sec.append(
+    el(
+      "p",
+      "pp-src",
+      `${e.t.toLocaleString("en-GB")} usual residents of this postcode district, added up from census output areas. Source: `,
+      e.y === 2022 ? "Scotland's Census 2022, National Records of Scotland." : "ONS Census 2021 (TS021).",
+    ),
+  );
+  return sec;
+}
+
+export function districtPopup(
+  code: string,
+  data: DistrictData,
+  meta: Meta,
+  beds: Beds,
+  cvd: boolean,
+  eth: EthnicityData | null | false,
+): HTMLElement {
   const d = data.d[code];
   const root = el("div", "pp");
   if (!d) {
@@ -82,6 +162,7 @@ export function districtPopup(code: string, data: DistrictData, meta: Meta, beds
       ? el("p", "pp-split", "Spans " + d.sh.map(([n, p]) => `${n} ${p}%`).join(", ") + "; uses the largest.")
       : null,
     source(area, meta),
+    ethnicitySection(code, eth),
   );
   return root;
 }
@@ -104,6 +185,12 @@ export function niPopup(district: string | null, label: string | null, data: Dis
       el("p", "pp-area", `Figures for the whole ${area?.n ?? "rent area"}, which NIHE defines as a set of postcode districts. ${district} is one of them.`),
       el("p", "pp-note", NI_NOTE),
       el("p", "pp-src", `Source: ONS Price Index of Private Rents, ${month}, the latest Northern Ireland month ONS publishes (published ${meta.piprPublished}).`),
+      el(
+        "section",
+        "pp-eth",
+        el("h4", undefined, "Who lives here"),
+        el("p", "pp-note", "Not available for Northern Ireland: without open NI postcode data, census areas can't be matched to postcode districts."),
+      ),
     );
     return root;
   }

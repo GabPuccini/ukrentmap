@@ -69,3 +69,25 @@ export interface Meta {
   sources: Source[];
   fetched: string;
 }
+
+/** Census ethnic group of the residents of one postcode district. */
+export interface EthnicityEntry {
+  /** census year: 2021 for England and Wales, 2022 for Scotland */
+  y: number;
+  /** usual residents */
+  t: number;
+  /** percent in each broad group, in EthnicityData.meta.groups order; absent when too few residents */
+  g?: number[];
+  /** detailed groups of at least 0.5%: [label, broad group index, percent], largest first */
+  d?: [string, number, number][];
+}
+
+export interface EthnicityData {
+  meta: {
+    built: string;
+    groups: string[];
+    minResidents: number;
+    sources: Source[];
+  };
+  d: Record<string, EthnicityEntry>;
+}

@@ -65,3 +65,11 @@ export function textOn(colour: string): string {
   const [r, g, b] = colour.startsWith("#") ? hex(colour) : (m ?? ["0", "0", "0"]).map(Number);
   return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#111" : "#fff";
 }
+
+/**
+ * Broad ethnic groups, in fixed order: White, Asian, Black, Mixed, Other.
+ * Categorical slots 1-5 of a palette checked for colour-vision separation
+ * (scripts: dataviz validate_palette). They are not on either rent ramp, and
+ * every segment is also labelled with its name and percentage.
+ */
+export const ETHNIC_COLOURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];

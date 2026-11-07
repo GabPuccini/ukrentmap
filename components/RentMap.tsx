@@ -7,7 +7,7 @@ import { BASE, LABEL_ZOOM, MAX_BOUNDS, MAX_ZOOM, MIN_ZOOM, UK_BOUNDS, asset } fr
 import { monthName, pounds } from "@/lib/format";
 import { districtPopup, niPopup } from "@/lib/popup";
 import { resolve } from "@/lib/search";
-import { BED_LABEL, RENT_INDEX, type Beds, type DistrictData, type Meta } from "@/lib/types";
+import { BED_LABEL, RENT_INDEX, type Beds, type DistrictData, type EthnicityData, type Meta } from "@/lib/types";
 import About from "./About";
 import Controls from "./Controls";
 import SearchBox from "./SearchBox";
@@ -141,14 +141,16 @@ export default function RentMap() {
   const mlRef = useRef<typeof import("maplibre-gl") | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [data, setData] = useState<DistrictData | null>(null);
+  /** census ethnicity: null while loading, false if it failed */
+  const [eth, setEth] = useState<EthnicityData | null | false>(null);
   const [beds, setBeds] = useState<Beds>("r2");
   const [cvd, setCvd] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
-  const state = useRef({ beds, cvd, meta, data });
-  state.current = { beds, cvd, meta, data };
+  const state = useRef({ beds, cvd, meta, data, eth });
+  state.current = { beds, cvd, meta, data, eth };
   const niBounds = useRef<LngLatBoundsLike | null>(null);
   /** what the open popup shows, so it can be redrawn when the bedroom count or colours change */
   const popupContent = useRef<{ kind: "d"; code: string } | { kind: "ni"; district: string | null; label: string | null } | null>(null);
@@ -171,6 +173,11 @@ export default function RentMap() {
         setData(d);
       })
       .catch(() => setFailed("Couldn't load the map data. Check your connection and reload."));
+    // Census figures are only needed for popups, so they load in the background.
+    fetch(`${BASE}/data/ethnicity.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<EthnicityData>) : Promise.reject(r.status)))
+      .then(setEth)
+      .catch(() => setEth(false));
   }, []);
 
   const closePopup = useCallback(() => {
@@ -181,10 +188,10 @@ export default function RentMap() {
   }, []);
 
   const renderPopupContent = useCallback((): HTMLElement | null => {
-    const { meta: m, data: d, beds: b, cvd: c } = state.current;
+    const { meta: m, data: d, beds: b, cvd: c, eth: e } = state.current;
     const pc = popupContent.current;
     if (!m || !d || !pc) return null;
-    return pc.kind === "d" ? districtPopup(pc.code, d, m, b, c) : niPopup(pc.district, pc.label, d, m, b, c);
+    return pc.kind === "d" ? districtPopup(pc.code, d, m, b, c, e) : niPopup(pc.district, pc.label, d, m, b, c);
   }, []);
 
   const showPopup = useCallback(
@@ -327,7 +334,7 @@ export default function RentMap() {
       const body = renderPopupContent();
       if (body) popupRef.current.setDOMContent(body);
     }
-  }, [beds, cvd, meta, ready, renderPopupContent]);
+  }, [beds, cvd, eth, meta, ready, renderPopupContent]);
 
   const chooseBeds = (b: Beds) => {
     setBeds(b);
