@@ -143,7 +143,7 @@ export default function About({ meta, onClose }: { meta: Meta; onClose: () => vo
             <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
               © OpenStreetMap contributors
             </a>
-            , Open Database Licence (via Geofabrik)
+            , Open Database Licence (UK extract from openstreetmap.fr)
           </li>
           <li>Northern Ireland BRMA postcode districts: Northern Ireland Housing Executive</li>
           <li>Map fonts: Noto Sans, SIL Open Font License</li>

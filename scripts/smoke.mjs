@@ -289,7 +289,7 @@ try {
     if (toast) {
       await p2.click(".toast button");
       await p2.waitForSelector("html[data-ready='1']", { timeout: 30_000 });
-      await p2.click(".icon-btn");
+      await p2.click("button[aria-label^=\"About\"]");
       const v = await p2.waitForFunction(() => /App version (\S+)\./.exec(document.querySelector(".sheet")?.textContent ?? "")?.[1], null, { timeout: 10_000 }).then((h) => h.jsonValue());
       check(/-a$/.test(v), `Reload switches to the new version (${v})`);
 
@@ -301,7 +301,7 @@ try {
       await p2.click(".sheet-close");
       await p2.click(".toast button");
       await p2.waitForSelector("html[data-ready='1']", { timeout: 30_000 });
-      await p2.click(".icon-btn");
+      await p2.click("button[aria-label^=\"About\"]");
       await p2.click(".check-updates");
       await p2.waitForFunction(() => /latest/.test(document.querySelector(".update-status")?.textContent ?? ""), null, { timeout: 15_000 });
       check(true, '"Check for updates" says "You have the latest version" when it does');

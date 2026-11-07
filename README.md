@@ -51,7 +51,7 @@ Everything is free and open. No API keys, no runtime calls to anyone else's serv
 | Ethnic group, England & Wales | [ONS Census 2021, TS021](https://www.ons.gov.uk/datasets/TS021), output areas, via the [Nomis bulk download](https://www.nomisweb.co.uk/output/census/2021/census2021-ts021.zip) | Census Day 21 March 2021 | OGL v3.0 |
 | Ethnic group, Scotland | [Scotland's Census 2022, UV201](https://www.scotlandscensus.gov.uk/documents/2022-output-area-data/), output areas (National Records of Scotland) | Census Day 20 March 2022 | OGL v3.0 |
 | Postcode → census output area | ONS Postcode Directory (August 2026), GB rows only | Aug 2026 | OGL v3.0 |
-| Walking network | [OpenStreetMap](https://www.openstreetmap.org/copyright), via [Geofabrik](https://download.geofabrik.de/europe/united-kingdom.html) extracts for England, Scotland and Wales | __OSMDATE__ | ODbL 1.0 |
+| Walking network | [OpenStreetMap](https://www.openstreetmap.org/copyright), UK extract from the [OpenStreetMap France mirror](https://download.openstreetmap.fr/extracts/europe/), Northern Ireland left out | 7 November 2026 | ODbL 1.0 |
 | NI rent areas by postcode district | Northern Ireland Housing Executive, as compiled in [nick-bailey/Postcode-to-BRMA-lookup](https://github.com/nick-bailey/Postcode-to-BRMA-lookup) (OGL) | May 2024 | OGL v3.0 |
 | Map fonts | Noto Sans glyphs from [protomaps/basemaps-assets](https://github.com/protomaps/basemaps-assets) | | SIL OFL 1.1 |
 
@@ -114,11 +114,11 @@ Tap the walking-person button, type a **From** and a **To** postcode (or a distr
 shortest walking route with A and B markers and shows, e.g., "2.3 km (1.4 mi) · about 29 min on foot", plus the straight-line
 distance for comparison.
 
-- **The network.** It's built from OpenStreetMap: __KM__ km of footpaths, pavements, streets, pedestrian areas, steps, tracks,
+- **The network.** It's built from OpenStreetMap: about 980,000 km of footpaths, pavements, streets, pedestrian areas, steps, tracks,
   bridleways, cycleways, towpaths and footbridges across Great Britain. Left out: motorways, anything tagged `foot=no` or private,
   driveways and car-park aisles. Separately mapped pavements are also left out, because the street they run beside is already walkable;
   that halves the size in cities without changing the distance meaningfully.
-- **On the phone.** The network is split into __TILES__ compressed tiles of about 5 × 5 km (__MB__ MB in total). A route downloads
+- **On the phone.** The network is split into 8,991 compressed tiles of about 5 × 5 km (128 MB in total). A route downloads
   only the tiles it passes through, typically a few hundred KB, and the service worker keeps them, so a route you've done works
   offline. The search is A* from the nearest path to each postcode. It is exact for the network: the true shortest path, not an
   estimate.
@@ -128,12 +128,15 @@ distance for comparison.
   - Northern Ireland postcodes can't be used, because their positions aren't open data.
   - Walking ferries aren't included.
   - OpenStreetMap is as good as its mappers: a missing footpath means a longer route.
+- **Checked.** Every tile decodes, and no path is drawn longer than its true length. Test routes come out at sensible multiples of the
+  straight line: Fallowfield → Manchester centre 5.3 km (straight 4.7), Westminster → Greenwich 10.8 km (9.5), Manchester → Bolton
+  17.3 km (15.8). Each takes well under a second. Southampton → Isle of Wight is recognised as unwalkable after about 1.7 MB of tiles.
 - **Licence.** OpenStreetMap data is © OpenStreetMap contributors under the Open Database Licence. The app credits it wherever a
   route is shown, and the tiles in `public/data/walk/` are published under the same licence (`public/data/walk/LICENSE`).
 - **Rebuilding.** OpenStreetMap changes daily, but walking routes barely move, so this isn't part of the weekly refresh. Run
   `npm run data:walk` (`scripts/build_walk.py`) once in a while. It needs `osmium-tool` (`sudo apt-get install osmium-tool`, or
-  `brew install osmium-tool`) and the Python packages in `scripts/requirements.txt`. It downloads about 1.9 GB and takes about
-  __MINUTES__ minutes.
+  `brew install osmium-tool`) and the Python packages in `scripts/requirements.txt`. It downloads the 2.6 GB UK extract and takes about
+  7 minutes.
 
 ## Refreshing the data
 

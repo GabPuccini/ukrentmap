@@ -4,8 +4,9 @@
     python3 scripts/build_walk.py          (or: npm run data:walk)
 
 Needs osmium-tool (apt install osmium-tool) and pyosmium (pip install osmium).
-Downloads the Geofabrik extracts for England, Scotland and Wales (about 1.9 GB)
-into data-raw/osm/, and writes public/data/walk/: index.json plus one
+Downloads the OpenStreetMap UK extract from the OpenStreetMap France mirror
+(about 2.6 GB, refreshed daily) into data-raw/osm/, leaves out Northern Ireland
+(its postcodes can't be located, so its paths would never be used), and writes public/data/walk/: index.json plus one
 gzip-compressed binary tile per ~5 x 5 km square. The app downloads only the
 tiles a route passes through and finds the route on the phone.
 
@@ -60,8 +61,13 @@ ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data-raw" / "osm"
 OUT = ROOT / "public" / "data" / "walk"
 UA = "ukrentmap-data-fetch/1.0 (+https://github.com/GabPuccini/ukrentmap)"
-GEOFABRIK = "https://download.geofabrik.de/europe/united-kingdom/{}-latest.osm.pbf"
-COUNTRIES = ["england", "scotland", "wales"]
+# Geofabrik (download.geofabrik.de) has the same data split by country, but
+# could not be reached from the build machine, so the OSM France mirror is used.
+OSM_URL = "https://download.openstreetmap.fr/extracts/europe/united_kingdom.osm.pbf"
+NI_URL = (
+    "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Countries_December_2025_Boundaries_UK_BGC/"
+    "FeatureServer/0/query?where=CTRY25CD%3D%27N92000002%27&outFields=CTRY25CD&outSR=27700&f=geojson"
+)
 
 # Tile grid, in degrees: about 5.3 km east-west by 5.6 km north-south in the UK.
 X0, Y0, DX, DY = -9.0, 49.0, 0.08, 0.05
@@ -85,43 +91,52 @@ def log(msg: str) -> None:
     print(f"[{dt.datetime.now():%H:%M:%S}] {msg}", flush=True)
 
 
-def download() -> list[Path]:
+def fetch(url: str, path: Path) -> None:
+    tmp = path.with_suffix(path.suffix + ".part")
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=600) as r, open(tmp, "wb") as f:
+        shutil.copyfileobj(r, f, 1 << 22)
+    tmp.replace(path)
+
+
+def download() -> Path:
     RAW.mkdir(parents=True, exist_ok=True)
-    paths = []
-    for c in COUNTRIES:
-        path = RAW / f"{c}-latest.osm.pbf"
-        if not path.exists():
-            url = GEOFABRIK.format(c)
-            log(f"downloading {url}")
-            expected = urllib.request.urlopen(urllib.request.Request(url + ".md5", headers={"User-Agent": UA})).read().split()[0].decode()
-            tmp = path.with_suffix(".part")
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=600) as r, open(tmp, "wb") as f:
-                shutil.copyfileobj(r, f, 1 << 22)
-            md5 = hashlib.md5(tmp.read_bytes()).hexdigest()
-            if md5 != expected:
-                raise RuntimeError(f"{path.name}: checksum {md5} != {expected}")
-            tmp.replace(path)
-        paths.append(path)
-    return paths
+    path = RAW / "united_kingdom.osm.pbf"
+    if not path.exists():
+        log(f"downloading {OSM_URL} (about 2.6 GB)")
+        expected = urllib.request.urlopen(urllib.request.Request(OSM_URL + ".md5", headers={"User-Agent": UA})).read().split()[0].decode()
+        fetch(OSM_URL, path)
+        h = hashlib.md5()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 24), b""):
+                h.update(chunk)
+        if h.hexdigest() != expected:
+            path.unlink()
+            raise RuntimeError(f"{path.name}: checksum {h.hexdigest()} != {expected}")
+    return path
 
 
-def prefilter(paths: list[Path]) -> tuple[Path, str]:
-    """Keep only highway ways and their nodes, merged into one small file."""
-    out = RAW / "walk-highways.osm.pbf"
-    parts = []
-    for p in paths:
-        part = RAW / (p.name.replace("-latest.osm.pbf", "-highways.osm.pbf"))
-        if not part.exists() or part.stat().st_mtime < p.stat().st_mtime:
-            log(f"filtering {p.name}")
-            subprocess.run(["osmium", "tags-filter", "--overwrite", "-o", str(part), str(p), "w/highway"], check=True)
-        parts.append(part)
-    if not out.exists() or any(out.stat().st_mtime < q.stat().st_mtime for q in parts):
-        log("merging")
-        subprocess.run(["osmium", "merge", "--overwrite", "-o", str(out), *map(str, parts)], check=True)
-    stamp = ""
-    info = subprocess.run(["osmium", "fileinfo", "-g", "header.option.osmosis_replication_timestamp", str(paths[0])],
+def ni_area():
+    """Northern Ireland, from the ONS boundary, widened by 1 km, in lon/lat."""
+    path = RAW / "ni_bgc_27700.geojson"
+    if not path.exists():
+        fetch(NI_URL, path)
+    from pyproj import Transformer
+
+    geom = shapely.union_all([shapely.from_geojson(json.dumps(f["geometry"])) for f in json.loads(path.read_text())["features"]])
+    geom = shapely.buffer(shapely.simplify(geom, 100), 1000)
+    to_wgs = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
+    return shapely.transform(geom, lambda c: np.column_stack(to_wgs.transform(c[:, 0], c[:, 1])))
+
+
+def prefilter(src: Path) -> tuple[Path, str]:
+    """Keep only highway ways and their nodes."""
+    out = RAW / "uk-highways.osm.pbf"
+    if not out.exists() or out.stat().st_mtime < src.stat().st_mtime:
+        log(f"filtering {src.name} to highways")
+        subprocess.run(["osmium", "tags-filter", "--overwrite", "-o", str(out), str(src), "w/highway"], check=True)
+    info = subprocess.run(["osmium", "fileinfo", "-g", "header.option.osmosis_replication_timestamp", str(src)],
                           capture_output=True, text=True)
-    stamp = info.stdout.strip()[:10]
+    stamp = info.stdout.strip()[:10] or dt.datetime.fromtimestamp(src.stat().st_mtime, dt.timezone.utc).date().isoformat()
     return out, stamp
 
 
@@ -209,7 +224,7 @@ def main() -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--input", type=Path, help="use this OSM file instead of downloading Geofabrik's (for tests)")
+    ap.add_argument("--input", type=Path, help="use this OSM file instead of downloading the UK extract (for tests)")
     ap.add_argument("--out", type=Path, default=OUT, help="output folder (default public/data/walk)")
     args = ap.parse_args()
     out_dir: Path = args.out
@@ -218,6 +233,7 @@ def main() -> int:
         src, osm_date = args.input, "test"
     else:
         src, osm_date = prefilter(download())
+    skip_ni = not args.input
 
     log("reading walkable ways")
     h = Ways()
@@ -266,8 +282,16 @@ def main() -> int:
     sel = order[first_of_pair]
     u, v, elen, eu, ev = u[sel], v[sel], elen[sel], eu[sel], ev[sel]
 
-    # Drop fragments that connect to almost nothing.
+    # Leave out Northern Ireland: its postcodes can't be located, so its paths
+    # would never be used.
     n = len(vnodes)
+    if skip_ni:
+        in_ni = shapely.contains_xy(ni_area(), vlon / 1e6, vlat / 1e6)
+        keep = ~(in_ni[u] | in_ni[v])
+        log(f"leaving out {in_ni.sum():,} Northern Ireland junctions")
+        u, v, elen, eu, ev = u[keep], v[keep], elen[keep], eu[keep], ev[keep]
+
+    # Drop fragments that connect to almost nothing.
     g = coo_matrix((np.ones(len(u)), (u, v)), shape=(n, n))
     ncomp, comp = connected_components(g, directed=False)
     comp_len = np.bincount(comp[u], weights=elen, minlength=ncomp)
@@ -408,14 +432,14 @@ def main() -> int:
         "km": round(float(elen.sum()) / 1000),
         "osmDate": osm_date,
         "built": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
-        "source": "OpenStreetMap contributors, via Geofabrik (england, scotland, wales)",
+        "source": "OpenStreetMap contributors, UK extract from download.openstreetmap.fr, Northern Ireland left out",
         "licence": "ODbL 1.0",
     }, separators=(",", ":")))
     (out_dir / "LICENSE").write_text(
         "The walking network tiles in this folder are derived from OpenStreetMap data,\n"
         "(c) OpenStreetMap contributors, and are available under the Open Database\n"
         "Licence 1.0: https://opendatacommons.org/licenses/odbl/1-0/\n"
-        "Source data: https://www.openstreetmap.org/copyright (downloaded from Geofabrik).\n"
+        "Source data: https://www.openstreetmap.org/copyright (UK extract from download.openstreetmap.fr).\n"
     )
     log(f"done: {len(tiles_keys):,} tiles, {total_bytes / 1e6:.1f} MB, OSM data of {osm_date}, {time.time() - t0:.0f} s")
     return 0

@@ -650,6 +650,14 @@ input {
   }
 }
 
+/* Phones in walk mode: the From/To boxes and the result fill the top right,
+   so the zoom buttons step aside (pinch to zoom still works). */
+@media (max-width: 719px) {
+  .app:has(.walk) .maplibregl-ctrl-top-right {
+    display: none;
+  }
+}
+
 /* Very narrow phones: shorten the bedroom buttons */
 @media (max-width: 360px) {
   .seg-unit {

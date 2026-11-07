@@ -26,6 +26,9 @@ const RAD = Math.PI / 180;
 export const MAX_STRAIGHT_M = 40_000;
 const SNAP_RADIUS_M = 1500;
 const MAX_TILES = 260;
+/** After this many tiles, check whether either end is on a small separate network (an island). */
+const PROBE_AFTER_TILES = 40;
+const SMALL_NETWORK = 80_000;
 
 export function distance(a: Pt, b: Pt): number {
   const dLat = (b[1] - a[1]) * RAD;
@@ -207,6 +210,26 @@ export class Router {
     return best;
   }
 
+  /** Every vertex connected to start, or null if there are more than max (not a small island). */
+  private async component(start: number, max: number): Promise<Set<number> | null> {
+    const seen = new Set<number>([start]);
+    const stack = [start];
+    while (stack.length) {
+      if (seen.size > max) return null;
+      const id = stack.pop()!;
+      const t = await this.net.tileOf(id);
+      const i = id - t.base;
+      for (let j = t.edgeStart[i]; j < t.edgeStart[i + 1]; j++) {
+        const w = t.target[j];
+        if (!seen.has(w)) {
+          seen.add(w);
+          stack.push(w);
+        }
+      }
+    }
+    return seen;
+  }
+
   async route(a: Pt, b: Pt, labels: [string, string], progress?: (tiles: number) => void): Promise<WalkRoute> {
     const straight = distance(a, b);
     if (straight > MAX_STRAIGHT_M) {
@@ -240,16 +263,28 @@ export class Router {
       [sb.s, sb.fromS],
       [sb.t, sb.fromT],
     ]);
+    // Give up on routes more than about three times the straight line. The
+    // check is on the estimated full length (g + h), which stops a hopeless
+    // search far sooner than checking the distance walked so far.
     const limit = straight * 3 + 5000;
     let pops = 0;
+    let probed = false;
+    const island = "No walking route links these postcodes: one of them is on an island or a separate network.";
 
     for (;;) {
-      if (!heap.size) throw new WalkError("No walking route links these postcodes (one may be on an island or a private road).");
+      if (!heap.size) throw new WalkError(island);
       const [f, id] = heap.pop();
       if (id === GOAL) break;
       const gi = g.get(id)!;
       if (f - h(this.net.tileOfSync(id)!, id) > gi + 1e-6) continue; // stale entry
-      if (gi > limit) throw new WalkError("No walking route found within a reasonable distance of the straight line.");
+      if (f > limit) throw new WalkError("No walking route found within a reasonable distance of the straight line.");
+      if (!probed && this.net.tilesLoaded > PROBE_AFTER_TILES) {
+        probed = true;
+        const atB = await this.component(sb.s, SMALL_NETWORK);
+        if (atB && !atB.has(sa.s)) throw new WalkError(island);
+        const atA = await this.component(sa.s, SMALL_NETWORK);
+        if (atA && !atA.has(sb.s)) throw new WalkError(island);
+      }
       const r = remain.get(id);
       if (r !== undefined && gi + r < goalCost) {
         goalCost = gi + r;
