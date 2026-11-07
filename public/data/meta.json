@@ -1,0 +1,115 @@
+{
+ "built": "2026-11-07T11:58:29+00:00",
+ "rentMonth": "2026-09",
+ "rentMonthNI": "2026-07",
+ "piprPublished": "21 October 2026",
+ "percentiles": [
+  5,
+  25,
+  50,
+  75,
+  95
+ ],
+ "scale": {
+  "r0": [
+   687,
+   806,
+   984,
+   1340,
+   1998
+  ],
+  "r1": [
+   490,
+   563,
+   693,
+   922,
+   1589
+  ],
+  "r2": [
+   631,
+   738,
+   885,
+   1199,
+   1956
+  ],
+  "r3": [
+   754,
+   932,
+   1073,
+   1455,
+   2261
+  ],
+  "r4": [
+   1059,
+   1329,
+   1587,
+   2092,
+   3196
+  ]
+ },
+ "counts": {
+  "postcodes": 1748497,
+  "districts": 2863,
+  "polygons": 2845,
+  "noData": 22
+ },
+ "noDataDistricts": [
+  "EC1A",
+  "EC2M",
+  "EC2N",
+  "EC2R",
+  "EC2V",
+  "EC2Y",
+  "EC3A",
+  "EC3M",
+  "EC3N",
+  "EC3R",
+  "EC3V",
+  "EC4A",
+  "EC4M",
+  "EC4N",
+  "EC4R",
+  "EC4V",
+  "EC4Y",
+  "TR21",
+  "TR22",
+  "TR23",
+  "TR24",
+  "TR25"
+ ],
+ "sources": [
+  {
+   "name": "ONS Price Index of Private Rents, UK: monthly price statistics",
+   "page": "https://www.ons.gov.uk/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics",
+   "url": "https://www.ons.gov.uk/file?uri=/economy/inflationandpriceindices/datasets/priceindexofprivaterentsukmonthlypricestatistics/21october2026/priceindexofprivaterentsukmonthlypricestatistics.xlsx",
+   "edition": "21october2026"
+  },
+  {
+   "name": "OS Code-Point Open (GB)",
+   "page": "https://www.ordnancesurvey.co.uk/products/code-point-open",
+   "url": "https://api.os.uk/downloads/v1/products/CodePointOpen/downloads?area=GB&format=CSV&redirect",
+   "md5": "4c0935d67129402dd0719e063676d9ae"
+  },
+  {
+   "name": "Scottish Government Broad Rental Market Areas",
+   "page": "https://www.spatialdata.gov.scot/geonetwork/srv/eng/catalog.search#/metadata/ecf60902-9e71-41bc-b822-6a1f37934dc1",
+   "url": "https://maps.gov.scot/ATOM/shapefiles/SG_BroadRentalMarketAreas_2009.zip"
+  },
+  {
+   "name": "ONS Countries (December 2025) Boundaries UK BGC",
+   "page": "https://geoportal.statistics.gov.uk/",
+   "layer": "Countries_December_2025_Boundaries_UK_BGC"
+  },
+  {
+   "name": "ONS Local Authority Districts (May 2026) names",
+   "page": "https://geoportal.statistics.gov.uk/",
+   "layer": "Local_Authority_Districts_May_2026_Boundaries_UK_BUC"
+  },
+  {
+   "name": "ONS Wards (May 2026) names and codes",
+   "page": "https://geoportal.statistics.gov.uk/",
+   "layer": "WD_MAY_2026_UK_NC"
+  }
+ ],
+ "fetched": "2026-11-07T11:41:00+00:00"
+}
